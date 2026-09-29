@@ -253,7 +253,11 @@ function page(content, url) {
   .msg { padding: 12px; font: 13px var(--vscode-font-family); color: var(--vscode-foreground); }
   button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);
            border: none; padding: 2px 8px; cursor: pointer; }
+  .view { flex: 1; position: relative; display: flex; }
   iframe { flex: 1; border: none; width: 100%; background: white; }
+  #flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: var(--vscode-focusBorder, #0078d4); }
+  #flash.on { animation: flash .5s ease-out; }
+  @keyframes flash { from { opacity: .3; } to { opacity: 0; } }
 </style></head>
 <body>
   <div class="bar">
@@ -261,13 +265,20 @@ function page(content, url) {
     <button id="source" title="Reopen this file as text">Open Source</button>
     <span>${url ? esc(url) : ''}</span>
   </div>
-  ${content}
+  <div class="view">${content}<div id="flash"></div></div>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     document.getElementById('source').onclick = () => vscode.postMessage('source');
     const f = document.getElementById('f'), r = document.getElementById('reload');
     // Ask Live Server to reload the page in place (keeps scroll). If the frame
     // doesn't reload within 2.5 s, reload it from scratch (scrolls to top).
+    // Flash the page on every reload after the first load (Reload button or save).
+    const flash = document.getElementById('flash');
+    let firstLoad = true;
+    if (f) f.addEventListener('load', () => {
+      if (firstLoad || f.getAttribute('src') === 'about:blank') { firstLoad = false; return; }
+      flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
+    });
     if (r) r.onclick = () => {
       let loaded = false;
       f.addEventListener('load', () => { loaded = true; }, { once: true });
