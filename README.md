@@ -9,7 +9,7 @@
 Requires VS Code 1.75 or newer. Live Server (`ritwickdey.LiveServer`) is a declared dependency, so VS Code installs it if it is missing.
 
 ```bash
-code --install-extension live-server-preview-0.2.1.vsix
+code --install-extension live-server-preview-0.2.2.vsix
 ```
 
 or run **Extensions: Install from VSIX...** in the Command Palette and pick the `.vsix` in this folder. With Remote-SSH, install it on the remote side, where Live Server runs. Then run **Developer: Reload Window**.
@@ -44,7 +44,9 @@ The first item in the right-click menu of HTML files in the Explorer, the editor
 
 ### Live reload
 
-Saving the HTML file triggers Live Server's reload inside the preview. The **Reload** button in the preview toolbar reloads it manually. Unsaved changes are saved before a preview starts.
+Edits render when you save: Live Server watches the served folder and reloads the preview on every save (not on unsaved keystrokes). These reloads run `location.reload()` inside the page, so the scroll position is kept.
+
+The **Reload** button in the preview toolbar works the same way. It updates the file's modification time (the contents are not touched), which makes Live Server send its reload, so the page keeps its scroll position. If the page has not reloaded after 2.5 s (for example, if the file is in `liveServer.settings.ignoreFiles`), it falls back to loading the page from scratch, which scrolls to the top. Unsaved changes are saved before a preview starts.
 
 ## Limitations
 

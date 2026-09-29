@@ -60,6 +60,11 @@ async function resolvePreview(uri, panel) {
   panel.webview.options = { enableScripts: true };
   panel.webview.onDidReceiveMessage((m) => {
     if (m === 'source') openSource(uri);
+    // Bump the file's mtime so Live Server sends its own reload; the page then
+    // calls location.reload() itself, which keeps the scroll position.
+    if (m === 'reload') {
+      try { const now = new Date(); fs.utimesSync(uri.fsPath, now, now); } catch { /* webview falls back */ }
+    }
   });
   panel.webview.html = page(`<div class="msg">Starting Live Server...</div>`);
   try {
@@ -261,7 +266,14 @@ function page(content, url) {
     const vscode = acquireVsCodeApi();
     document.getElementById('source').onclick = () => vscode.postMessage('source');
     const f = document.getElementById('f'), r = document.getElementById('reload');
-    if (r) r.onclick = () => { const u = f.src; f.src = 'about:blank'; setTimeout(() => { f.src = u; }, 50); };
+    // Ask Live Server to reload the page in place (keeps scroll). If the frame
+    // doesn't reload within 2.5 s, reload it from scratch (scrolls to top).
+    if (r) r.onclick = () => {
+      let loaded = false;
+      f.addEventListener('load', () => { loaded = true; }, { once: true });
+      vscode.postMessage('reload');
+      setTimeout(() => { if (!loaded) { const u = f.src; f.src = 'about:blank'; setTimeout(() => { f.src = u; }, 50); } }, 2500);
+    };
   </script>
 </body></html>`;
 }
