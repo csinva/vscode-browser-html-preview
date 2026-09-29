@@ -9,7 +9,7 @@
 Requires VS Code 1.75 or newer. Live Server (`ritwickdey.LiveServer`) is a declared dependency, so VS Code installs it if it is missing.
 
 ```bash
-code --install-extension live-server-preview-0.2.3.vsix
+code --install-extension live-server-preview-0.2.4.vsix
 ```
 
 or run **Extensions: Install from VSIX...** in the Command Palette and pick the `.vsix` in this folder. With Remote-SSH, install it on the remote side, where Live Server runs. Then run **Developer: Reload Window**.
@@ -40,7 +40,11 @@ The first item in the right-click menu of HTML files in the Explorer, the editor
 
 1. The extension first checks whether Live Server is already serving the file. It probes the configured `liveServer.settings.port` and the next 9 ports, plus every port the extension host process listens on (Live Server runs in the same process and can fall back to a random port). A port counts only if it returns the file with Live Server's injected `<!-- Code injected by live-server -->` script.
 2. If Live Server is not running, it sets `liveServer.settings.NoBrowser` to `true`, runs Live Server's `extension.liveServer.goOnline` on the file, waits for the server (up to `liveServerPreview.startTimeoutSeconds`, default 15), and then restores your previous `NoBrowser` value. Using Live Server directly still opens the browser as before.
-3. The preview loads `http://<host>:<port>/<path relative to liveServer.settings.root>` in an iframe. `vscode.env.asExternalUri` forwards the port when VS Code is connected to a remote (SSH, WSL, dev containers).
+3. The preview loads `<path relative to liveServer.settings.root>` in an iframe, through the local copy proxy described below, which forwards to Live Server at `http://<host>:<port>`. `vscode.env.asExternalUri` forwards the port when VS Code is connected to a remote (SSH, WSL, dev containers).
+
+### Copy text from the page
+
+Select text in the preview and press Cmd+C / Ctrl+C. Because the page runs in a cross-origin iframe inside the webview, VS Code's own copy command cannot see its selection. The extension therefore serves the preview through a small local proxy in front of Live Server that adds a short script to HTML pages. The script sends the selected text to the extension, which writes it to the clipboard. Other files and Live Server's WebSocket (live reload) pass through the proxy unchanged.
 
 ### Live reload
 

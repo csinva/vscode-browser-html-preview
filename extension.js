@@ -6,6 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const net = require('net');
+const tls = require('tls');
 const { execFile } = require('child_process');
 
 const LS_MARKER = 'Code injected by live-server';
@@ -60,6 +62,7 @@ async function resolvePreview(uri, panel) {
   panel.webview.options = { enableScripts: true };
   panel.webview.onDidReceiveMessage((m) => {
     if (m === 'source') openSource(uri);
+    if (m?.type === 'copy' && m.text) vscode.env.clipboard.writeText(m.text);
     // Bump the file's mtime so Live Server sends its own reload; the page then
     // calls location.reload() itself, which keeps the scroll position.
     if (m === 'reload') {
@@ -108,7 +111,8 @@ async function previewUrl(uri) {
     () => ensureServer(uri, scheme, host, urlPath)
   );
 
-  const local = vscode.Uri.parse(`${scheme}://${host}:${port}${urlPath}`);
+  const proxyPort = await ensureProxy(scheme, host, port);
+  const local = vscode.Uri.parse(`http://127.0.0.1:${proxyPort}${urlPath}`);
   // Forwards the port when VS Code is connected to a remote (SSH, WSL, containers).
   const external = await vscode.env.asExternalUri(local);
   return external.toString(true);
@@ -273,6 +277,13 @@ function page(content, url) {
     // Ask Live Server to reload the page in place (keeps scroll). If the frame
     // doesn't reload within 2.5 s, reload it from scratch (scrolls to top).
     // Flash the page on every reload after the first load (Reload button or save).
+    // Copy: the frame sends its selection; VS Code's copy command fires 'copy' here.
+    window.addEventListener('message', (e) => {
+      if (f && e.source === f.contentWindow && e.data && e.data.__lsp === 'copy') vscode.postMessage({ type: 'copy', text: e.data.text });
+    });
+    document.addEventListener('copy', () => {
+      if (f && !String(getSelection())) f.contentWindow.postMessage({ __lsp: 'getSelection' }, '*');
+    });
     const flash = document.getElementById('flash');
     let firstLoad = true;
     if (f) f.addEventListener('load', () => {
@@ -289,6 +300,83 @@ function page(content, url) {
 </body></html>`;
 }
 
-function deactivate() {}
+// The page runs in a cross-origin iframe, so VS Code's copy command can't see
+// its selection. A small proxy in front of Live Server adds a script to HTML
+// pages that sends the selection to the webview, which puts it on the
+// clipboard. WebSocket upgrades (live reload) are piped through unchanged.
+const BRIDGE = `<script>(function () {
+  if (window.parent === window) return;
+  var send = function () { var t = String(getSelection()); if (t) parent.postMessage({ __lsp: 'copy', text: t }, '*'); };
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') send();
+  }, true);
+  document.addEventListener('copy', send, true);
+  window.addEventListener('message', function (e) { if (e.data && e.data.__lsp === 'getSelection') send(); });
+})();</script>`;
+
+const proxies = new Map(); // upstream origin -> Promise<proxy port>
+const proxyServers = [];
+
+function injectBridge(html) {
+  const i = html.toLowerCase().lastIndexOf('</body>');
+  return i < 0 ? html + BRIDGE : html.slice(0, i) + BRIDGE + html.slice(i);
+}
+
+function ensureProxy(scheme, host, port) {
+  const key = `${scheme}://${host}:${port}`;
+  if (!proxies.has(key)) proxies.set(key, new Promise((resolve, reject) => {
+    const lib = scheme === 'https' ? https : http;
+    const target = `${host}:${port}`;
+    const server = http.createServer((req, res) => {
+      const up = lib.request({
+        host, port, method: req.method, path: req.url, rejectUnauthorized: false,
+        headers: { ...req.headers, host: target, 'accept-encoding': 'identity' },
+      }, (ur) => {
+        if (!/text\/html/i.test(ur.headers['content-type'] || '')) {
+          res.writeHead(ur.statusCode, ur.headers);
+          ur.pipe(res);
+          return;
+        }
+        const chunks = [];
+        ur.on('data', (c) => chunks.push(c));
+        ur.on('end', () => {
+          const body = Buffer.from(injectBridge(Buffer.concat(chunks).toString('utf8')));
+          const headers = { ...ur.headers, 'content-length': body.length };
+          delete headers['content-encoding'];
+          delete headers['transfer-encoding'];
+          res.writeHead(ur.statusCode, headers);
+          res.end(body);
+        });
+      });
+      up.on('error', (e) => { res.writeHead(502); res.end(`Live Server Preview proxy: ${e.message}`); });
+      req.pipe(up);
+    });
+    server.on('upgrade', (req, socket, head) => {
+      const up = scheme === 'https'
+        ? tls.connect({ host, port, rejectUnauthorized: false })
+        : net.connect(port, host);
+      let raw = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        const name = req.rawHeaders[i];
+        raw += `${name}: ${name.toLowerCase() === 'host' ? target : req.rawHeaders[i + 1]}\r\n`;
+      }
+      up.write(raw + '\r\n');
+      if (head?.length) up.write(head);
+      up.pipe(socket);
+      socket.pipe(up);
+      up.on('error', () => socket.destroy());
+      socket.on('error', () => up.destroy());
+    });
+    server.on('error', (e) => { proxies.delete(key); reject(e); });
+    server.listen(0, '127.0.0.1', () => resolve(server.address().port));
+    proxyServers.push(server);
+  }));
+  return proxies.get(key);
+}
+
+
+function deactivate() {
+  for (const s of proxyServers) s.close();
+}
 
 module.exports = { activate, deactivate };

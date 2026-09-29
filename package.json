@@ -2,7 +2,7 @@
   "name": "live-server-preview",
   "displayName": "Live Server Preview (in VS Code)",
   "description": "Preview HTML files inside a VS Code tab, served by the Live Server extension, without opening a browser.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "csinva",
   "license": "MIT",
   "repository": {
