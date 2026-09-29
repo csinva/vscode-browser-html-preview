@@ -5,6 +5,14 @@
   "version": "0.2.1",
   "publisher": "csinva",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/csinva/vscode-browser-html-preview.git"
+  },
+  "homepage": "https://github.com/csinva/vscode-browser-html-preview#readme",
+  "bugs": {
+    "url": "https://github.com/csinva/vscode-browser-html-preview/issues"
+  },
   "engines": {
     "vscode": "^1.75.0"
   },

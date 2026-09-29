@@ -17,7 +17,7 @@ or run **Extensions: Install from VSIX...** in the Command Palette and pick the 
 To rebuild the `.vsix` after editing the code (the extension is plain JavaScript with no dependencies):
 
 ```bash
-npx @vscode/vsce package --no-dependencies --allow-missing-repository
+npx @vscode/vsce package --no-dependencies
 ```
 
 ## Features
