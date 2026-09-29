@@ -1,0 +1,105 @@
+{
+  "name": "live-server-preview",
+  "displayName": "Live Server Preview (in VS Code)",
+  "description": "Preview HTML files inside a VS Code tab, served by the Live Server extension, without opening a browser.",
+  "version": "0.2.1",
+  "publisher": "csinva",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "extensionDependencies": [
+    "ritwickdey.LiveServer"
+  ],
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "liveServerPreview.open",
+        "title": "Preview in VS Code (Live Server)",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "liveServerPreview.openSource",
+        "title": "Open Source",
+        "icon": "$(go-to-file)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "liveServerPreview.open",
+          "when": "resourceExtname =~ /^\\.html?$/i",
+          "group": "navigation@-1000"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "liveServerPreview.open",
+          "when": "resourceLangId == html",
+          "group": "navigation@-1000"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "liveServerPreview.open",
+          "when": "resourceLangId == html && activeCustomEditorId != liveServerPreview.editor",
+          "group": "navigation"
+        },
+        {
+          "command": "liveServerPreview.openSource",
+          "when": "activeCustomEditorId == liveServerPreview.editor",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "liveServerPreview.open",
+          "when": "resourceLangId == html"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "liveServerPreview.open",
+          "when": "resourceLangId == html"
+        },
+        {
+          "command": "liveServerPreview.openSource",
+          "when": "activeCustomEditorId == liveServerPreview.editor"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Live Server Preview",
+      "properties": {
+        "liveServerPreview.startTimeoutSeconds": {
+          "type": "number",
+          "default": 15,
+          "description": "How long to wait for Live Server to start before giving up."
+        }
+      }
+    },
+    "customEditors": [
+      {
+        "viewType": "liveServerPreview.editor",
+        "displayName": "Live Server Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.html"
+          },
+          {
+            "filenamePattern": "*.htm"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
+  }
+}
