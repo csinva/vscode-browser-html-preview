@@ -9,7 +9,7 @@
 Requires VS Code 1.75 or newer. Live Server (`ritwickdey.LiveServer`) is a declared dependency, so VS Code installs it if it is missing.
 
 ```bash
-code --install-extension live-server-preview-0.2.4.vsix
+code --install-extension live-server-preview-0.2.5.vsix
 ```
 
 or run **Extensions: Install from VSIX...** in the Command Palette and pick the `.vsix` in this folder. With Remote-SSH, install it on the remote side, where Live Server runs. Then run **Developer: Reload Window**.
@@ -45,6 +45,10 @@ The first item in the right-click menu of HTML files in the Explorer, the editor
 ### Copy text from the page
 
 Select text in the preview and press Cmd+C / Ctrl+C. Because the page runs in a cross-origin iframe inside the webview, VS Code's own copy command cannot see its selection. The extension therefore serves the preview through a small local proxy in front of Live Server that adds a short script to HTML pages. The script sends the selected text to the extension, which writes it to the clipboard. Other files and Live Server's WebSocket (live reload) pass through the proxy unchanged.
+
+### VS Code shortcuts work while the page has focus
+
+A cross-origin iframe keeps key presses to itself, so after clicking in the page VS Code shortcuts such as Ctrl+\` (terminal) and Ctrl+Tab (next editor) would do nothing. The script added by the proxy forwards key presses that use Ctrl, Cmd or Alt, function keys, and modifier press/release to the webview, which re-dispatches them where VS Code's webview host listens for keybindings. Select-all, copy, paste, cut, undo and redo stay in the page, and other keys (typing, arrows, Space) are not forwarded, so the page's own keyboard handling still works.
 
 ### Live reload
 

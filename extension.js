@@ -279,7 +279,18 @@ function page(content, url) {
     // Flash the page on every reload after the first load (Reload button or save).
     // Copy: the frame sends its selection; VS Code's copy command fires 'copy' here.
     window.addEventListener('message', (e) => {
-      if (f && e.source === f.contentWindow && e.data && e.data.__lsp === 'copy') vscode.postMessage({ type: 'copy', text: e.data.text });
+      if (!f || e.source !== f.contentWindow || !e.data) return;
+      const d = e.data;
+      if (d.__lsp === 'copy') vscode.postMessage({ type: 'copy', text: d.text });
+      // Re-dispatch forwarded shortcuts here, where VS Code's webview host listens
+      // for keys and passes them to the keybinding service.
+      if (d.__lsp === 'key') {
+        const ev = new KeyboardEvent(d.type, { key: d.key, code: d.code, ctrlKey: d.ctrlKey, shiftKey: d.shiftKey,
+          altKey: d.altKey, metaKey: d.metaKey, repeat: d.repeat, bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'keyCode', { get: () => d.keyCode });
+        Object.defineProperty(ev, 'which', { get: () => d.keyCode });
+        window.dispatchEvent(ev);
+      }
     });
     document.addEventListener('copy', () => {
       if (f && !String(getSelection())) f.contentWindow.postMessage({ __lsp: 'getSelection' }, '*');
@@ -312,6 +323,18 @@ const BRIDGE = `<script>(function () {
   }, true);
   document.addEventListener('copy', send, true);
   window.addEventListener('message', function (e) { if (e.data && e.data.__lsp === 'getSelection') send(); });
+  // Forward shortcuts (Ctrl/Cmd/Alt combos, F-keys, modifier press/release) so VS Code
+  // keybindings such as Ctrl+\` and Ctrl+Tab work while the page has focus.
+  // Clipboard, select-all and undo/redo stay in the page.
+  var fwd = function (e) {
+    var mod = /^(Control|Meta|Alt|Shift)$/.test(e.key);
+    if (e.type === 'keyup' ? !mod : !(mod || e.ctrlKey || e.metaKey || e.altKey || /^F[0-9]+$/.test(e.key))) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && /^[acvxyz]$/i.test(e.key)) return;
+    parent.postMessage({ __lsp: 'key', type: e.type, key: e.key, code: e.code, keyCode: e.keyCode,
+      ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat }, '*');
+  };
+  document.addEventListener('keydown', fwd, true);
+  document.addEventListener('keyup', fwd, true);
 })();</script>`;
 
 const proxies = new Map(); // upstream origin -> Promise<proxy port>
